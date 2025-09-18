@@ -14,6 +14,13 @@ public:
     void Update(const GameState& state);
     void Render();
 
+    // 置顶开关
+    void SetTopMost(bool on);
+    bool IsTopMost() const { return m_topMost; }
+
+    // 自适应尺寸
+    void ResizeToFit(int contentW, int contentH, float scale = 1.0f);
+
     HWND GetHandle() const { return m_hwnd; }
 
 private:
@@ -22,6 +29,7 @@ private:
     HBITMAP m_bitmap;
     int m_width, m_height;
     GameState m_state;
+    bool m_topMost = true;
 
     void ResizeBackBuffer(int w, int h);
 

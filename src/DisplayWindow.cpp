@@ -48,7 +48,7 @@ bool DisplayWindow::Create() {
 
     RegisterClassW(&wc);
 
-    m_hwnd = CreateWindowExW(0, kWndClassName, L"Minesweeper Assistant",
+    m_hwnd = CreateWindowExW(WS_EX_APPWINDOW, kWndClassName, L"Minesweeper Assistant",
         WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, m_width, m_height,
         NULL, NULL, GetModuleHandle(NULL), NULL);
 
@@ -80,4 +80,24 @@ void DisplayWindow::Update(const GameState& state) {
 
 void DisplayWindow::Render() {
     // 当前绘制逻辑在 WM_PAINT 中完成
+}
+
+void DisplayWindow::SetTopMost(bool on) {
+    m_topMost = on;
+    if (!m_hwnd) return;
+    SetWindowPos(m_hwnd, on ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+}
+
+void DisplayWindow::ResizeToFit(int contentW, int contentH, float scale) {
+    if (!m_hwnd) return;
+    int w = int(contentW * scale);
+    int h = int(contentH * scale);
+    RECT rc{}; rc.left = 0; rc.top = 0; rc.right = w; rc.bottom = h;
+    AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
+    int winW = rc.right - rc.left;
+    int winH = rc.bottom - rc.top;
+    SetWindowPos(m_hwnd, NULL, 0, 0, winW, winH, SWP_NOMOVE | SWP_NOZORDER);
+    m_width = w; m_height = h;
+    ResizeBackBuffer(w, h);
 }

@@ -17,6 +17,8 @@ set(SRC
     src/WindowCapture.cpp
     src/GameAnalyzer.cpp
     src/DisplayWindow.cpp
+    src/WindowSelector.cpp
+    src/Logger.cpp
 )
 
 # 可执行文件

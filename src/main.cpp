@@ -1,6 +1,8 @@
 #include "WindowCapture.h"
 #include "GameAnalyzer.h"
 #include "DisplayWindow.h"
+#include "WindowSelector.h"
+#include "Logger.h"
 #include <thread>
 #include <atomic>
 #include <iostream>
@@ -65,20 +67,26 @@ int main() {
     GameAnalyzer analyzer;
     DisplayWindow display;
 
-    // 选择游戏窗口（当前为前台窗口）
-    HWND gameHwnd = capture.SelectGameWindow();
+    // 里程碑1：启动自动识别，失败则前台窗口作为候选
+    HWND gameHwnd = WindowSelector::AutoPick();
+    if (!gameHwnd) {
+        LOGI("AutoPick 未命中，使用前台窗口作为候选");
+        gameHwnd = WindowSelector::PickForeground();
+    }
     if (!gameHwnd) {
         std::cerr << "未能选择游戏窗口" << std::endl;
         // 仍然展示辅助窗口，便于验证 UI
         if (!display.Create()) {
             return 1;
         }
+        display.SetTopMost(true);
     } else {
         capture.SetGameWindow(gameHwnd);
         if (!display.Create()) {
             std::cerr << "未能创建显示窗口" << std::endl;
             return 1;
         }
+        display.SetTopMost(true);
 
         cv::Mat gameImage;
         std::mutex imageMutex;
@@ -87,6 +95,14 @@ int main() {
         std::thread captureThread(CaptureThread, std::ref(capture), std::ref(gameImage), std::ref(imageMutex));
         std::thread analysisThread(AnalysisThread, std::ref(capture), std::ref(analyzer),
                                   std::ref(display), std::ref(gameImage), std::ref(imageMutex));
+
+        // 初始自适应：以被捕获窗口的客户区大小尝试调整（捕获一次以获尺寸）
+        {
+            cv::Mat tmp;
+            if (capture.CaptureGameArea(tmp) && !tmp.empty()) {
+                display.ResizeToFit(tmp.cols, tmp.rows, 1.0f);
+            }
+        }
 
         // 消息循环
         MSG msg;
