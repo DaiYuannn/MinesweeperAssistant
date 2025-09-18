@@ -4,7 +4,7 @@
 static const wchar_t* kWndClassName = L"MinesweeperAssistantDisplay";
 
 DisplayWindow::DisplayWindow()
-    : m_hwnd(NULL), m_memoryDC(NULL), m_bitmap(NULL), m_width(600), m_height(400) {}
+    : m_hwnd(NULL), m_memoryDC(NULL), m_bitmap(NULL), m_width(260), m_height(480) {}
 
 DisplayWindow::~DisplayWindow() {
     if (m_bitmap) DeleteObject(m_bitmap);

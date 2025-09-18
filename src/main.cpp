@@ -97,13 +97,7 @@ int main() {
         std::thread analysisThread(AnalysisThread, std::ref(capture), std::ref(analyzer),
                                   std::ref(display), std::ref(gameImage), std::ref(imageMutex));
 
-        // 初始自适应：以被捕获窗口的客户区大小尝试调整（捕获一次以获尺寸）
-        {
-            cv::Mat tmp;
-            if (capture.CaptureGameArea(tmp) && !tmp.empty()) {
-                display.ResizeToFit(tmp.cols, tmp.rows, 1.0f);
-            }
-        }
+        // 不再根据目标窗口尺寸自动调整显示窗口；保持小窗模式
 
         // 注册热键 F8：手动拖拽选择游戏窗口
         RegisterHotKey(NULL, 1, 0, VK_F8);
@@ -144,10 +138,11 @@ int main() {
             }
         }
 
-        // 清理
+    // 清理
         g_running = false;
         captureThread.join();
         analysisThread.join();
+    UnregisterHotKey(NULL, 1);
 
         return 0;
     }

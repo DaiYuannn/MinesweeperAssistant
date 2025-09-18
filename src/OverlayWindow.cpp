@@ -1,5 +1,6 @@
 #include "OverlayWindow.h"
 #include <dwmapi.h>
+#include <algorithm>
 #pragma comment(lib, "Dwmapi.lib")
 
 static OverlayWindow* g_overlay = nullptr;
@@ -35,7 +36,7 @@ LRESULT CALLBACK OverlayWindow::WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         return 0;
     }
     case WM_KEYDOWN:
-        if (w == VK_ESCAPE) { g_overlay->m_done = true; return 0; }
+        if (w == VK_ESCAPE) { ShowWindow(h, SW_HIDE); g_overlay->m_done = true; return 0; }
         break;
     case WM_DESTROY:
         return 0;
@@ -58,11 +59,22 @@ LRESULT CALLBACK OverlayWindow::LLMouseProc(int nCode, WPARAM wParam, LPARAM lPa
             }
         } else if (wParam == WM_LBUTTONUP) {
             g_overlay->m_selecting = false;
-            // 用中心点拾取窗口
-            POINT cpt{ (g_overlay->m_ptStart.x + g_overlay->m_ptCur.x)/2,
-                       (g_overlay->m_ptStart.y + g_overlay->m_ptCur.y)/2 };
-            HWND h = WindowFromPoint(cpt);
-            if (h) g_overlay->m_result = GetAncestor(h, GA_ROOT);
+            // 规范化并判断有效面积
+            LONG left   = std::min(g_overlay->m_ptStart.x, g_overlay->m_ptCur.x);
+            LONG right  = std::max(g_overlay->m_ptStart.x, g_overlay->m_ptCur.x);
+            LONG top    = std::min(g_overlay->m_ptStart.y, g_overlay->m_ptCur.y);
+            LONG bottom = std::max(g_overlay->m_ptStart.y, g_overlay->m_ptCur.y);
+            if ((right - left) >= 3 && (bottom - top) >= 3) {
+                POINT cpt{ (left + right)/2, (top + bottom)/2 };
+                HWND hTarget = WindowFromPoint(cpt);
+                if (hTarget) {
+                    HWND root = GetAncestor(hTarget, GA_ROOT);
+                    if (root != g_overlay->m_hwnd) {
+                        g_overlay->m_result = root;
+                    }
+                }
+            }
+            ShowWindow(g_overlay->m_hwnd, SW_HIDE);
             g_overlay->m_done = true;
         }
     }
@@ -103,12 +115,15 @@ HWND OverlayWindow::SelectBlocking() {
     // 低级鼠标钩子
     m_mouseHook = SetWindowsHookExW(WH_MOUSE_LL, LLMouseProc, NULL, 0);
 
-    // 模态循环
+    // 模态循环（PeekMessage，避免无法退出）
     m_done = false;
     MSG msg;
-    while (!m_done && GetMessage(&msg, NULL, 0, 0)) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
+    while (!m_done) {
+        while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+        Sleep(10);
     }
 
     destroy();
