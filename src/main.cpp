@@ -120,11 +120,6 @@ int main() {
                     captureThread = std::thread(CaptureThread, std::ref(capture), std::ref(gameImage), std::ref(imageMutex));
                     analysisThread = std::thread(AnalysisThread, std::ref(capture), std::ref(analyzer),
                                                 std::ref(display), std::ref(gameImage), std::ref(imageMutex));
-                    // 自适应窗口
-                    cv::Mat tmp;
-                    if (capture.CaptureGameArea(tmp) && !tmp.empty()) {
-                        display.ResizeToFit(tmp.cols, tmp.rows, 1.0f);
-                    }
                 } else {
                     // 未选择则恢复线程继续
                     g_running = true;
