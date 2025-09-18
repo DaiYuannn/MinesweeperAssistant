@@ -62,6 +62,7 @@ void AnalysisThread(WindowCapture& capture, GameAnalyzer& analyzer,
                 display.Update(state);
 
                 auto safeMoves = analyzer.FindSafeMoves(state);
+                    state.safeCells = safeMoves; // 供渲染高亮
                 for (const auto& move : safeMoves) {
                     int cellW = currentImage.cols / state.cols;
                     int cellH = currentImage.rows / state.rows;

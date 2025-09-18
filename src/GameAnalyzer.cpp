@@ -17,13 +17,30 @@ bool GameAnalyzer::AnalyzeGameState(const cv::Mat& gameImage, GameState& state) 
     state.grid.assign(state.rows, std::vector<int>(state.cols, 9));
     state.remainingMines = state.mineCount;
     state.exploredPercent = 0.0f;
+    state.safeCells.clear();
+    state.mineCells.clear();
 
     return true;
 }
 
 std::vector<cv::Point> GameAnalyzer::FindSafeMoves(const GameState& state) {
-    // 占位：当前不做自动点击，返回空
-    return {};
+    // 占位：寻找所有已知为 0 的周围未知格，作为安全推荐
+    std::vector<cv::Point> out;
+    auto inside = [&](int r, int c){ return r>=0 && r<state.rows && c>=0 && c<state.cols; };
+    for (int r=0;r<state.rows;++r){
+        for (int c=0;c<state.cols;++c){
+            if (state.grid[r][c] == 0){
+                for (int dr=-1; dr<=1; ++dr){
+                    for (int dc=-1; dc<=1; ++dc){
+                        if (dr==0 && dc==0) continue;
+                        int nr=r+dr, nc=c+dc;
+                        if (inside(nr,nc) && state.grid[nr][nc]==9) out.emplace_back(nc,nr);
+                    }
+                }
+            }
+        }
+    }
+    return out;
 }
 
 void GameAnalyzer::PerformClick(HWND hwnd, int x, int y, bool rightClick) {

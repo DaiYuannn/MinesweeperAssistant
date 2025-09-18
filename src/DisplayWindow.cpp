@@ -1,5 +1,6 @@
 #include "DisplayWindow.h"
 #include <sstream>
+#include <vector>
 
 static const wchar_t* kWndClassName = L"MinesweeperAssistantDisplay";
 
@@ -27,6 +28,90 @@ LRESULT CALLBACK DisplayWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPAR
         SetBkMode(hdc, TRANSPARENT);
         DrawTextW(hdc, title, -1, &rc, DT_TOP | DT_CENTER | DT_SINGLELINE);
 
+        // 简易网格渲染
+        DisplayWindow* self = reinterpret_cast<DisplayWindow*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+        if (self && self->m_state.rows > 0 && self->m_state.cols > 0) {
+            int gridTop = 30; // 预留标题高度
+            int w = (rc.right - rc.left) - 16; // padding
+            int h = (rc.bottom - rc.top) - gridTop - 16;
+            if (w < 10 || h < 10) { EndPaint(hwnd, &ps); return 0; }
+            int cellW = w / self->m_state.cols;
+            int cellH = h / self->m_state.rows;
+            int startX = rc.left + 8;
+            int startY = rc.top + gridTop;
+
+            auto colorNum = [&](int n) -> COLORREF {
+                switch (n) {
+                case 1: return RGB(0,0,255);
+                case 2: return RGB(0,128,0);
+                case 3: return RGB(255,0,0);
+                case 4: return RGB(0,0,128);
+                case 5: return RGB(128,0,0);
+                case 6: return RGB(0,128,128);
+                case 7: return RGB(0,0,0);
+                case 8: return RGB(128,128,128);
+                default: return RGB(0,0,0);
+                }
+            };
+
+            HPEN gridPen = CreatePen(PS_SOLID, 1, RGB(200,200,200));
+            HGDIOBJ oldPen = SelectObject(hdc, gridPen);
+            // 网格线
+            for (int r = 0; r <= self->m_state.rows; ++r) {
+                int y = startY + r * cellH;
+                MoveToEx(hdc, startX, y, NULL);
+                LineTo(hdc, startX + cellW * self->m_state.cols, y);
+            }
+            for (int c = 0; c <= self->m_state.cols; ++c) {
+                int x = startX + c * cellW;
+                MoveToEx(hdc, x, startY, NULL);
+                LineTo(hdc, x, startY + cellH * self->m_state.rows);
+            }
+
+            // 单元格内容
+            for (int r = 0; r < self->m_state.rows; ++r) {
+                for (int c = 0; c < self->m_state.cols; ++c) {
+                    int v = 9;
+                    if (r < (int)self->m_state.grid.size() && c < (int)self->m_state.grid[r].size())
+                        v = self->m_state.grid[r][c];
+                    RECT cell{ startX + c*cellW, startY + r*cellH, startX + (c+1)*cellW, startY + (r+1)*cellH };
+                    // 背景色：未知淡灰，旗子淡黄，雷淡红
+                    COLORREF bg = RGB(255,255,255);
+                    if (v == 9) bg = RGB(245,245,245);
+                    else if (v == 10) bg = RGB(255,250,205);
+                    else if (v == -1) bg = RGB(255,228,225);
+                    HBRUSH b = CreateSolidBrush(bg);
+                    FillRect(hdc, &cell, b); DeleteObject(b);
+
+                    if (v >= 1 && v <= 8) {
+                        std::wstring t = std::to_wstring(v);
+                        SetTextColor(hdc, colorNum(v));
+                        DrawTextW(hdc, t.c_str(), -1, &cell, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                    }
+                }
+            }
+
+            // 高亮建议
+            auto drawHighlight = [&](const std::vector<cv::Point>& pts, COLORREF col) {
+                HPEN pen = CreatePen(PS_SOLID, 2, col);
+                HGDIOBJ old = SelectObject(hdc, pen);
+                HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(HOLLOW_BRUSH));
+                for (auto& p : pts) {
+                    if (p.y < 0 || p.y >= self->m_state.rows || p.x < 0 || p.x >= self->m_state.cols) continue;
+                    RECT cell{ startX + p.x*cellW, startY + p.y*cellH, startX + (p.x+1)*cellW, startY + (p.y+1)*cellH };
+                    Rectangle(hdc, cell.left, cell.top, cell.right, cell.bottom);
+                }
+                SelectObject(hdc, oldBrush);
+                SelectObject(hdc, old);
+                DeleteObject(pen);
+            };
+            drawHighlight(self->m_state.safeCells, RGB(0,200,0));
+            drawHighlight(self->m_state.mineCells, RGB(200,0,0));
+
+            SelectObject(hdc, oldPen);
+            DeleteObject(gridPen);
+        }
+
         EndPaint(hwnd, &ps);
         return 0;
     }
@@ -53,6 +138,9 @@ bool DisplayWindow::Create() {
         NULL, NULL, GetModuleHandle(NULL), NULL);
 
     if (!m_hwnd) return false;
+
+    // 绑定 this 以便在 WndProc 中使用
+    SetWindowLongPtr(m_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 
     ShowWindow(m_hwnd, SW_SHOW);
     UpdateWindow(m_hwnd);
