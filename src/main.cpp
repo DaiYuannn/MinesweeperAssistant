@@ -2,6 +2,7 @@
 #include "GameAnalyzer.h"
 #include "DisplayWindow.h"
 #include "WindowSelector.h"
+#include "OverlayWindow.h"
 #include "Logger.h"
 #include <thread>
 #include <atomic>
@@ -88,7 +89,7 @@ int main() {
         }
         display.SetTopMost(true);
 
-        cv::Mat gameImage;
+    cv::Mat gameImage;
         std::mutex imageMutex;
 
         g_running = true;
@@ -104,11 +105,43 @@ int main() {
             }
         }
 
+        // 注册热键 F8：手动拖拽选择游戏窗口
+        RegisterHotKey(NULL, 1, 0, VK_F8);
+
         // 消息循环
         MSG msg;
         while (GetMessage(&msg, NULL, 0, 0)) {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
+            if (msg.message == WM_HOTKEY && msg.wParam == 1) {
+                // 暂停抓取，弹出覆盖层
+                g_running = false;
+                captureThread.join();
+                analysisThread.join();
+
+                OverlayWindow overlay;
+                HWND selected = overlay.SelectBlocking();
+                if (selected) {
+                    capture.SetGameWindow(selected);
+                    // 重新启动线程
+                    g_running = true;
+                    captureThread = std::thread(CaptureThread, std::ref(capture), std::ref(gameImage), std::ref(imageMutex));
+                    analysisThread = std::thread(AnalysisThread, std::ref(capture), std::ref(analyzer),
+                                                std::ref(display), std::ref(gameImage), std::ref(imageMutex));
+                    // 自适应窗口
+                    cv::Mat tmp;
+                    if (capture.CaptureGameArea(tmp) && !tmp.empty()) {
+                        display.ResizeToFit(tmp.cols, tmp.rows, 1.0f);
+                    }
+                } else {
+                    // 未选择则恢复线程继续
+                    g_running = true;
+                    captureThread = std::thread(CaptureThread, std::ref(capture), std::ref(gameImage), std::ref(imageMutex));
+                    analysisThread = std::thread(AnalysisThread, std::ref(capture), std::ref(analyzer),
+                                                std::ref(display), std::ref(gameImage), std::ref(imageMutex));
+                }
+            } else {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
         }
 
         // 清理

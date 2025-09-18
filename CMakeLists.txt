@@ -19,6 +19,7 @@ set(SRC
     src/DisplayWindow.cpp
     src/WindowSelector.cpp
     src/Logger.cpp
+    src/OverlayWindow.cpp
 )
 
 # 可执行文件
@@ -30,7 +31,7 @@ if(OpenCV_FOUND)
 endif()
 
 if (WIN32)
-    target_link_libraries(MinesweeperAssistant user32 gdi32)
+    target_link_libraries(MinesweeperAssistant user32 gdi32 Dwmapi)
 endif()
 
 # 输出目录
