@@ -31,6 +31,9 @@ void AnalysisThread(WindowCapture& capture, GameAnalyzer& analyzer,
     state.cols = 16;
     state.mineCount = 40;
 
+    bool snapped = false;
+    cv::Rect lastRegion;
+
     while (g_running) {
         cv::Mat currentImage;
         {
@@ -41,6 +44,20 @@ void AnalysisThread(WindowCapture& capture, GameAnalyzer& analyzer,
         }
 
         if (!currentImage.empty()) {
+            // 尝试识别操作区域并吸附（仅首次或区域变化较大时）
+            if (!snapped) {
+                cv::Rect region;
+                if (capture.IdentifyGameBounds(currentImage, region)) {
+                    // 将 region 转为屏幕坐标：当前 CaptureGameArea 获取的是客户区图像，坐标相对客户区
+                    POINT clientTopLeft{0,0}; ClientToScreen(capture.GetGameWindow(), &clientTopLeft);
+                    RECT screenRect{ clientTopLeft.x + region.x, clientTopLeft.y + region.y,
+                                     clientTopLeft.x + region.x + region.width,
+                                     clientTopLeft.y + region.y + region.height };
+                    display.SnapNear(screenRect);
+                    snapped = true;
+                    lastRegion = region;
+                }
+            }
             if (analyzer.AnalyzeGameState(currentImage, state)) {
                 display.Update(state);
 

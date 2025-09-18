@@ -1,6 +1,8 @@
 #include "WindowCapture.h"
 #include <iostream>
 
+using namespace cv;
+
 WindowCapture::WindowCapture() : m_gameHwnd(NULL), m_rows(0), m_cols(0) {}
 WindowCapture::~WindowCapture() {}
 
@@ -60,9 +62,44 @@ bool WindowCapture::CaptureGameArea(cv::Mat& output) {
 }
 
 bool WindowCapture::IdentifyGameBounds(const cv::Mat& screenCapture, cv::Rect& gameRect) {
-    // 占位：直接返回整幅图像
     if (screenCapture.empty()) return false;
-    gameRect = cv::Rect(0, 0, screenCapture.cols, screenCapture.rows);
+
+    // 预处理：转灰度、平滑、边缘
+    Mat gray; cvtColor(screenCapture, gray, COLOR_BGRA2GRAY);
+    Mat blur; GaussianBlur(gray, blur, Size(3,3), 0);
+    Mat edges; Canny(blur, edges, 50, 150);
+    Mat dil; morphologyEx(edges, dil, MORPH_CLOSE, getStructuringElement(MORPH_RECT, Size(3,3)));
+
+    // 查找外部轮廓
+    std::vector<std::vector<Point>> contours; std::vector<Vec4i> hierarchy;
+    findContours(dil, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+    const int W = screenCapture.cols, H = screenCapture.rows;
+    const double imgArea = double(W) * double(H);
+    double bestScore = 0.0; Rect bestRect;
+    for (auto& c : contours) {
+        if (c.size() < 4) continue;
+        double per = arcLength(c, true);
+        std::vector<Point> approx; approxPolyDP(c, approx, 0.02 * per, true);
+        if (approx.size() != 4) continue;
+        if (!isContourConvex(approx)) continue;
+        Rect r = boundingRect(approx);
+        // 过滤过小/过大/贴边的矩形
+        if (r.width < 80 || r.height < 80) continue;
+        double area = double(r.area());
+        if (area > imgArea * 0.90) continue; // 排除几乎占满整个客户区的矩形
+        // 距离边缘至少几像素，避免整幅图
+        if (r.x < 5 || r.y < 5 || r.br().x > W - 5 || r.br().y > H - 5) continue;
+        double ar = double(r.width) / double(r.height);
+        if (ar < 0.5 || ar > 2.0) continue;
+
+        // 评分：面积越大越好（但不占满），更接近正方形略加分
+        double score = area * (1.0 - std::abs(ar - 1.0) * 0.1);
+        if (score > bestScore) { bestScore = score; bestRect = r; }
+    }
+
+    if (bestScore <= 0.0) return false;
+    gameRect = bestRect;
     return true;
 }
 

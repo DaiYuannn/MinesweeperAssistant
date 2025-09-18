@@ -101,3 +101,37 @@ void DisplayWindow::ResizeToFit(int contentW, int contentH, float scale) {
     m_width = w; m_height = h;
     ResizeBackBuffer(w, h);
 }
+
+void DisplayWindow::SnapNear(const RECT& target) {
+    if (!m_hwnd) return;
+
+    // 计算当前窗口外框尺寸
+    RECT self{}; self.left = 0; self.top = 0; self.right = m_width; self.bottom = m_height;
+    AdjustWindowRect(&self, WS_OVERLAPPEDWINDOW, FALSE);
+    int winW = self.right - self.left;
+    int winH = self.bottom - self.top;
+
+    // 首选靠右，其次靠左、下、上
+    int pad = 8;
+    POINT posCandidates[4] = {
+        { target.right + pad, target.top },                         // 右侧
+        { target.left - pad - winW, target.top },                   // 左侧
+        { target.left, target.bottom + pad },                       // 下方
+        { target.left, target.top - pad - winH }                    // 上方
+    };
+
+    // 屏幕工作区（主屏）
+    RECT wa{}; SystemParametersInfoW(SPI_GETWORKAREA, 0, &wa, 0);
+
+    auto clamp = [&](POINT p) {
+        if (p.x < wa.left) p.x = wa.left;
+        if (p.y < wa.top) p.y = wa.top;
+        if (p.x + winW > wa.right) p.x = wa.right - winW;
+        if (p.y + winH > wa.bottom) p.y = wa.bottom - winH;
+        return p;
+    };
+
+    // 选择首个基本不遮挡目标上边的方案
+    POINT best = clamp(posCandidates[0]);
+    SetWindowPos(m_hwnd, NULL, best.x, best.y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
+}

@@ -21,6 +21,9 @@ public:
     // 自适应尺寸
     void ResizeToFit(int contentW, int contentH, float scale = 1.0f);
 
+    // 小窗吸附到目标区域附近（不改变自身大小）
+    void SnapNear(const RECT& targetClientRectOnScreen);
+
     HWND GetHandle() const { return m_hwnd; }
 
 private:
