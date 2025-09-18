@@ -1,0 +1,28 @@
+# Build folders
+/build/
+/bin/
+/dist/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+*.cmake
+compile_commands.json
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/c_cpp_properties.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Misc
+*.zip
+*.7z
+*.tar
+*.tar.gz

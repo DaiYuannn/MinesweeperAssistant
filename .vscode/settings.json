@@ -1,0 +1,11 @@
+{
+    "cmake.configureSettings": {
+        "CMAKE_MAKE_PROGRAM": "mingw32-make.exe",
+        "CMAKE_C_COMPILER": "gcc.exe",
+        "CMAKE_CXX_COMPILER": "g++.exe"
+    },
+    "cmake.generator": "MSYS Makefiles",
+    "cmake.buildDirectory": "${workspaceFolder}/build",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools"
+}
