@@ -1,53 +1,83 @@
 # MinesweeperAssistant
 
-基于 C++/CMake/OpenCV 的 Windows 扫雷助手（骨架项目）。
+一个基于 C++/Win32/OpenCV 的扫雷辅助器。支持自动识别网页/客户端扫雷棋盘，叠加网格与建议，提供可控的自动点击与多项调节参数。
 
-## 先决条件
-- Windows 10/11
-- MSYS2（安装 mingw-w64-x86_64-toolchain、cmake、opencv）
-- VS Code 及扩展：C/C++、CMake、CMake Tools
+## 功能特性
 
-## 本地构建
-1. 打开 VS Code，确保 MSYS2/mingw64 的 `bin` 在 PATH 中。
-2. 配置与构建：
-   - 使用 CMake Tools 扩展选择生成器为 `MSYS Makefiles`，构建目录 `${workspaceFolder}/build`。
-   - 点击“配置”然后“构建”。
+- 无控制台的 Win32 GUI，置顶小窗，双缓冲绘制（无闪烁）。
+- 自动截取目标窗口（PrintWindow → BitBlt 回退），显示 Capture 方法诊断。
+- 棋盘区域检测与 HUD 剔除：
+   - 先用 HSV 红色七段数码管定位 HUD（计时/地雷数），确定棋盘上边界；
+   - 失败回退到边缘投影；
+   - 左右边界二次精裁剪，得到更紧的 gridRect。
+- 网格布局识别：
+   - 投影+自相关估计单元周期，推断行列数并对齐到周期边界；
+   - 窗口尺寸变化和 HUD 变化触发重识别，带 600ms 节流。
+- 数字识别：
+   - 数字模板匹配优先（放置 1–8 模板即可生效），失败回退颜色/方差法；
+   - 多帧投票平滑，降低抖动。
+- 自动玩：
+   - 默认仅移动（安全）；开启后自动点击安全格（每周期最多一次）；
+   - 可调点击间隔、随机抖动、坐标抖动；状态栏完整显示。
 
-也可手动：
-```
-# 在 cmd.exe 中（推荐）
-cmake -S . -B build -G "MinGW Makefiles"
-cmake --build build -- -j %NUMBER_OF_PROCESSORS%
+## 快速开始
 
-# 或在 MSYS2 bash 中
-mkdir -p build && cd build
-cmake -G "MSYS Makefiles" ..
-make -j$(nproc)
-```
+1) 依赖
+- Windows 10/11，MSYS2 ucrt64（mingw-w64）、CMake
+- OpenCV 4.x（已通过 CMake find_package 自动发现）
 
-生成的可执行文件位于 `build/bin/MinesweeperAssistant.exe`。
+2) 构建（PowerShell，建议 Ninja）
+- 生成：`cmake -S . -B build -G Ninja`
+- 构建：`cmake --build build`
+- 可执行：`bin/MinesweeperAssistant.exe`
 
-## 运行
-双击或在终端运行 `build/bin/MinesweeperAssistant.exe`。首次会选择当前前台窗口作为“游戏窗口”，并展示一个简单的状态窗口。
+3) 运行
+- 启动后按 F8 选择目标窗口（网页或客户端扫雷）。
+- 顶部状态栏显示：窗口信息、ROI、Capture/HUD 方法、Grid 行×列、Cell 像素、Auto/Intv/Jit、Mouse、FPS、分析耗时。
+
+## 模板放置（可选，强烈推荐）
+- 在仓库根创建 `resources/templates/`，放入数字模板：`1.png ... 8.png`（或 .bmp）。
+- 建议裁切为接近单格大小的灰度图（系统会做阈值与缩放）。
+- 模板匹配启用后，识别稳定性显著提升。
+
+## 热键
+- F8：重新选择窗口
+- F9：鼠标控制 ON/OFF（关闭时不移动也不点击）
+- F10：自动点击安全格 ON/OFF（受 F9 限制）
+- F11 / F12：点击基础间隔 -50ms / +50ms（50–2000）
+- F6 / F7：点击间隔随机抖动 -10ms / +10ms（0–1000）
+- F3 / F4：点击坐标抖动 -1px / +1px（0–10）
+- + / -：HUD 顶部检测比例 +5% / -5%（10–70）
+
+## 原理与实现摘要
+- WindowCapture：
+   - 捕获客户区图像；PrintWindow 内容校验失败则回退到 BitBlt；
+   - RefineBoardArea：HSV 红色掩膜定位 HUD → 细化为 gridRect；失败回退边缘投影；
+   - 纵向边缘投影裁剪左右边界；
+   - HUD 签名（上部区域红色二值缩放→FNV 哈希）用于变化触发。
+- 网格布局：
+   - 投影+自相关估计周期；行列推断与周期对齐得到 innerRect；
+   - 失败时兜底 16×16。
+- 识别与自动玩：
+   - 模板匹配优先（TM_CCOEFF_NORMED ≥ 0.60），否则颜色/方差法；
+   - 多帧投票：上一帧保守合并，减少抖动；
+   - 自动点击按间隔与随机抖动选择一个安全格点击，仍受全局鼠标开关约束。
+
+## 识别精度提升路线（建议）
+- 短期：多尺度模板（预生成 70/85/100/115/130%）；CLAHE+锐化；多帧多数表决（3–5 帧）；逻辑一致性“拒绝策略”。
+- 中期：Hough 网格线替代自相关；连通域数字分割+规则特征；主题色校准。
+- 长期：轻量 CNN（或 HOG+SVM）数字分类；运行时模板自学习（高置信度样本加入本局模板）。
+
+## 注意与安全
+- 默认不点击，仅移动；用户手动开启自动点击后生效。
+- 网页/显卡设置可能影响 PrintWindow，有回退路径；必要时调整浏览器硬件加速。
+- 若误识别概率偏高，建议提高点击间隔、减小随机、增大 HUD 比例或放置模板。
 
 ## 目录结构
-```
-MinesweeperAssistant/
-├── CMakeLists.txt
-├── src/
-│   ├── main.cpp
-│   ├── WindowCapture.cpp
-│   ├── WindowCapture.h
-│   ├── GameAnalyzer.cpp
-│   ├── GameAnalyzer.h
-│   ├── DisplayWindow.cpp
-│   ├── DisplayWindow.h
-│   └── GameState.h
-├── resources/
-│   └── templates/
-└── build/
-```
+- `src/`：源代码（Win32 + OpenCV）
+- `docs/`：方案与计划
+- `resources/templates/`：数字模板（可选）
+- `bin/`：可执行产物
 
-## 备注
-- 当前项目提供基础框架，图像识别与自动操作逻辑为占位实现，后续可逐步完善。
-- 如需打包，请确保 OpenCV 对应的 DLL 与可执行文件放在同一目录。
+## 许可证
+- 本项目用于学习与研究。第三方资源（如 OpenCV）遵从其各自许可证。

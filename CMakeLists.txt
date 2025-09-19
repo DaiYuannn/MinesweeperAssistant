@@ -22,8 +22,8 @@ set(SRC
     src/OverlayWindow.cpp
 )
 
-# 可执行文件
-add_executable(MinesweeperAssistant ${SRC})
+# 可执行文件（WIN32 以 GUI 子系统启动，隐藏控制台窗口）
+add_executable(MinesweeperAssistant WIN32 ${SRC})
 
 # 链接库
 if(OpenCV_FOUND)
@@ -32,6 +32,12 @@ endif()
 
 if (WIN32)
     target_link_libraries(MinesweeperAssistant user32 gdi32 Dwmapi)
+    # 使用宽字符入口 wWinMain 需要 -municode（MinGW）
+    if (MINGW)
+        target_link_options(MinesweeperAssistant PRIVATE -municode)
+    endif()
+    # 全局启用 Unicode 宏，确保调用宽字符版 Win32 API
+    target_compile_definitions(MinesweeperAssistant PRIVATE UNICODE _UNICODE)
 endif()
 
 # 输出目录

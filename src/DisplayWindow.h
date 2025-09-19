@@ -24,6 +24,9 @@ public:
     // 小窗吸附到目标区域附近（不改变自身大小）
     void SnapNear(const RECT& targetClientRectOnScreen);
 
+    // 状态栏内容（外部更新）
+    void SetStatusText(const std::wstring& text) { m_statusText = text; AutoAdjustForStatus(); InvalidateRect(m_hwnd, NULL, FALSE); }
+
     HWND GetHandle() const { return m_hwnd; }
 
 private:
@@ -33,8 +36,10 @@ private:
     int m_width, m_height;
     GameState m_state;
     bool m_topMost = true;
+    std::wstring m_statusText; // 状态栏文本
 
     void ResizeBackBuffer(int w, int h);
+    void AutoAdjustForStatus();
 
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 };
